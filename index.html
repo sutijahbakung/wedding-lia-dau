@@ -417,7 +417,7 @@
                                 class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all resize-none"></textarea>
                         </div>
 
-                        <button type="submit" class="w-full py-4 bg-accent text-white rounded-2xl font-bold shadow-lg hover:bg-stone-800 transition-all transform hover:-translate-y-1 active:scale-95">
+                        <button type="submit" class="w-full py-4 bg-stone-800 text-stone-50 rounded-2xl font-bold border border-stone-800 shadow-[0_16px_34px_rgba(41,37,36,0.22)] hover:bg-accent hover:border-accent transition-all transform hover:-translate-y-1 active:scale-95">
                             Kirim Ucapan
                         </button>
                     </form>
@@ -447,21 +447,197 @@
     </main>
 
     <script>
-        // Data Dummy Buku Tamu
-        const dummyMessages = [
-            { name: "Budi Santoso", attendance: "Ya", message: "Selamat ya Lia dan Abda'u! Semoga menjadi keluarga yang sakinah mawaddah warahmah. Aamiin.", time: "2 jam yang lalu" },
-            { name: "Siti Aminah", attendance: "Ya", message: "Barakallah! Senang sekali melihat kalian akhirnya melangkah ke jenjang pernikahan. Sampai jumpa di lokasi!", time: "5 jam yang lalu" },
-            { name: "Rizky Ramadhan", attendance: "Tidak", message: "Selamat menempuh hidup baru kawan! Maaf belum bisa hadir karena ada tugas luar kota, tapi doa terbaik selalu untuk kalian berdua.", time: "Yesterday" },
-            { name: "Lestari Putri", attendance: "Ya", message: "Happy wedding! Lancar terus sampai hari H ya. Can't wait to see you both on the stage!", time: "2 days ago" }
-        ];
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1wpXCabvCEa4MZM6IEYvw5Z0lswzljXnCDW8T1h50BMU/export?format=csv&gid=0';
+        const SHEET_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbyV6VJyy-q3G5DMBX4Yi1haN0ICFaoRdhwTvb-OOOi7LFha5QmzKMBYHAjnELj0S_Sb/exec';
+        const guestbookMessages = [];
+        let guestbookSheetUnavailable = false;
+
+        const parseCsv = csvText => {
+            const rows = [];
+            let currentRow = [];
+            let currentValue = '';
+            let insideQuotes = false;
+
+            for (let index = 0; index < csvText.length; index += 1) {
+                const char = csvText[index];
+                const nextChar = csvText[index + 1];
+
+                if (char === '"') {
+                    if (insideQuotes && nextChar === '"') {
+                        currentValue += '"';
+                        index += 1;
+                    } else {
+                        insideQuotes = !insideQuotes;
+                    }
+                    continue;
+                }
+
+                if (char === ',' && !insideQuotes) {
+                    currentRow.push(currentValue.trim());
+                    currentValue = '';
+                    continue;
+                }
+
+                if ((char === '\n' || char === '\r') && !insideQuotes) {
+                    if (char === '\r' && nextChar === '\n') {
+                        index += 1;
+                    }
+
+                    currentRow.push(currentValue.trim());
+                    if (currentRow.some(value => value !== '')) {
+                        rows.push(currentRow);
+                    }
+
+                    currentRow = [];
+                    currentValue = '';
+                    continue;
+                }
+
+                currentValue += char;
+            }
+
+            currentRow.push(currentValue.trim());
+            if (currentRow.some(value => value !== '')) {
+                rows.push(currentRow);
+            }
+
+            return rows;
+        };
+
+        const normalizeAttendance = value => {
+            const normalizedValue = (value || '').trim().toLowerCase();
+
+            if (['ya', 'yes', 'y', 'hadir', 'akan hadir', 'insyaallah hadir', 'insya allah hadir', 'true', '1'].includes(normalizedValue)) {
+                return 'Ya';
+            }
+
+            if (['tidak', 'no', 'n', 'tidak hadir', 'berhalangan', 'false', '0'].includes(normalizedValue)) {
+                return 'Tidak';
+            }
+
+            return value || 'Ya';
+        };
+
+        const formatMessageTime = rawValue => {
+            if (!rawValue) {
+                return 'Baru saja';
+            }
+
+            const parsedTime = new Date(rawValue);
+            if (Number.isNaN(parsedTime.getTime())) {
+                return rawValue;
+            }
+
+            const now = new Date();
+            const diffInSeconds = Math.round((parsedTime.getTime() - now.getTime()) / 1000);
+            const relativeFormat = new Intl.RelativeTimeFormat('id-ID', { numeric: 'auto' });
+
+            const ranges = [
+                { unit: 'year', seconds: 31536000 },
+                { unit: 'month', seconds: 2592000 },
+                { unit: 'week', seconds: 604800 },
+                { unit: 'day', seconds: 86400 },
+                { unit: 'hour', seconds: 3600 },
+                { unit: 'minute', seconds: 60 }
+            ];
+
+            for (const range of ranges) {
+                if (Math.abs(diffInSeconds) >= range.seconds) {
+                    return relativeFormat.format(Math.round(diffInSeconds / range.seconds), range.unit);
+                }
+            }
+
+            return 'Baru saja';
+        };
+
+        const syncGuestbookMessages = items => {
+            guestbookMessages.splice(0, guestbookMessages.length, ...items);
+        };
+
+        const loadSheetMessages = async () => {
+            try {
+                const response = await fetch(SHEET_CSV_URL, { cache: 'no-store' });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load sheet: ${response.status}`);
+                }
+
+                const csvText = await response.text();
+                const rows = parseCsv(csvText);
+
+                if (rows.length < 2) {
+                    syncGuestbookMessages([]);
+                    guestbookSheetUnavailable = false;
+                    return;
+                }
+
+                const headers = rows[0].map(header => header.trim().toLowerCase());
+                const nameIndex = headers.indexOf('nama');
+                const attendanceIndex = headers.indexOf('konfirmasi');
+                const messageIndex = headers.indexOf('pesan');
+                const createdAtIndex = headers.indexOf('created_at');
+
+                if ([nameIndex, attendanceIndex, messageIndex, createdAtIndex].some(index => index === -1)) {
+                    throw new Error('Sheet columns do not match expected headers');
+                }
+
+                const parsedMessages = rows.slice(1).map(row => {
+                    const rawCreatedAt = row[createdAtIndex] || '';
+                    const createdAtValue = new Date(rawCreatedAt).getTime();
+
+                    return {
+                        name: row[nameIndex] || 'Tamu',
+                        attendance: normalizeAttendance(row[attendanceIndex] || ''),
+                        message: row[messageIndex] || 'Turut berbahagia atas hari istimewa ini.',
+                        time: formatMessageTime(rawCreatedAt),
+                        createdAtValue: Number.isNaN(createdAtValue) ? 0 : createdAtValue
+                    };
+                }).filter(message => message.name || message.message);
+
+                parsedMessages.sort((messageA, messageB) => messageB.createdAtValue - messageA.createdAtValue);
+                syncGuestbookMessages(parsedMessages);
+                guestbookSheetUnavailable = false;
+            } catch {
+                syncGuestbookMessages([]);
+                guestbookSheetUnavailable = true;
+            }
+        };
+
+        const submitGuestbookMessage = async payload => {
+            if (!SHEET_SUBMIT_URL) {
+                throw new Error('submit-endpoint-missing');
+            }
+
+            const formBody = new URLSearchParams();
+            Object.entries(payload).forEach(([key, value]) => {
+                formBody.append(key, value);
+            });
+
+            const response = await fetch(SHEET_SUBMIT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+                },
+                body: formBody.toString()
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to save message: ${response.status}`);
+            }
+        };
 
         // Set Nama Tamu dari URL
-        window.onload = () => {
+        window.onload = async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const guestNameParam = urlParams.get('to') || '';
             const guestName = guestNameParam.replace(/-/g, ' ').trim() || 'Tamu Undangan';
+            const guestFormNameInput = document.getElementById('form-name');
 
             document.getElementById('guest-name').innerText = guestName;
+            if (guestNameParam.trim()) {
+                guestFormNameInput.value = guestName;
+            }
+            await loadSheetMessages();
             renderMessages();
         };
 
@@ -469,8 +645,18 @@
         function renderMessages() {
             const container = document.getElementById('messages-container');
             container.innerHTML = '';
+
+            if (guestbookMessages.length === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'bg-white p-6 rounded-3xl shadow-sm border border-stone-100 text-center reveal active';
+                emptyState.innerHTML = guestbookSheetUnavailable
+                    ? '<p class="text-stone-700 font-semibold mb-2">Daftar tamu belum bisa dimuat.</p><p class="text-sm text-stone-500 leading-relaxed">Data Google Sheet masih private, jadi ucapan akan muncul otomatis setelah sheet dibuka untuk akses publik.</p>'
+                    : '<p class="text-stone-700 font-semibold mb-2">Belum ada ucapan masuk.</p><p class="text-sm text-stone-500 leading-relaxed">Ucapan dan konfirmasi tamu dari Google Sheet akan tampil di sini.</p>';
+                container.appendChild(emptyState);
+                return;
+            }
             
-            dummyMessages.forEach(msg => {
+            guestbookMessages.forEach(msg => {
                 const messageEl = document.createElement('div');
                 messageEl.className = "bg-white p-6 rounded-3xl shadow-sm border border-stone-100 reveal active";
                 messageEl.innerHTML = `
@@ -488,33 +674,50 @@
         }
 
         // Handle Form Submission
-        window.handleFormSubmit = event => {
+        window.handleFormSubmit = async event => {
             event.preventDefault();
+            const form = document.getElementById('guestbook-form');
+            const submitButton = form.querySelector('button[type="submit"]');
             const name = document.getElementById('form-name').value;
             const attendance = document.querySelector('input[name="attendance"]:checked').value;
             const message = document.getElementById('form-message').value;
+            const createdAt = new Date().toISOString();
+            const originalText = submitButton.innerText;
 
-            // Tambahkan ke array data (simulasi saja karena tidak ada database)
-            dummyMessages.unshift({
-                name: name,
-                attendance: attendance,
-                message: message,
-                time: "Baru saja"
-            });
+            submitButton.disabled = true;
+            submitButton.innerText = 'Mengirim...';
+            submitButton.style.opacity = '0.8';
+            submitButton.style.cursor = 'not-allowed';
 
-            // Reset form dan render ulang
-            document.getElementById('guestbook-form').reset();
-            renderMessages();
-            
-            // Berikan feedback visual sederhana
-            const btn = event.target.querySelector('button');
-            const originalText = btn.innerText;
-            btn.innerText = "Terkirim!";
-            btn.style.backgroundColor = "#10b981"; // Green
-            setTimeout(() => {
-                btn.innerText = originalText;
-                btn.style.backgroundColor = ""; 
-            }, 2000);
+            try {
+                await submitGuestbookMessage({
+                    nama: name,
+                    konfirmasi: attendance,
+                    pesan: message,
+                    created_at: createdAt
+                });
+
+                form.reset();
+                await loadSheetMessages();
+                renderMessages();
+
+                submitButton.innerText = 'Terkirim!';
+                submitButton.style.backgroundColor = '#10b981';
+                submitButton.style.borderColor = '#10b981';
+            } catch (error) {
+                submitButton.innerText = error.message === 'submit-endpoint-missing' ? 'Endpoint Sheet Belum Diset' : 'Gagal Tersimpan';
+                submitButton.style.backgroundColor = '#dc2626';
+                submitButton.style.borderColor = '#dc2626';
+            } finally {
+                setTimeout(() => {
+                    submitButton.disabled = false;
+                    submitButton.innerText = originalText;
+                    submitButton.style.backgroundColor = '';
+                    submitButton.style.borderColor = '';
+                    submitButton.style.opacity = '';
+                    submitButton.style.cursor = '';
+                }, 2200);
+            }
         };
 
         // Buka Undangan
