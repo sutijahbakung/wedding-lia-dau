@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Link Undangan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Great+Vibes&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #7a5c4d;
+            --accent-deep: #4b3429;
+            --secondary: #f4e4d6;
+            --surface: #fffaf5;
+        }
+        body {
+            font-family: 'Cormorant Garamond', serif;
+            background:
+                radial-gradient(circle at top, rgba(244, 228, 214, 0.55), transparent 36%),
+                linear-gradient(135deg, #fbf6f0 0%, #f4ebe1 52%, #efe1d3 100%);
+            color: #3f2d24;
+        }
+        .font-signature {
+            font-family: 'Great Vibes', cursive;
+        }
+    </style>
+</head>
+<body class="min-h-screen px-6 py-10 md:px-8">
+    <div class="mx-auto max-w-2xl rounded-[2rem] border border-white/60 bg-[rgba(255,250,245,0.9)] p-7 shadow-[0_24px_80px_rgba(78,56,44,0.15)] backdrop-blur-sm md:p-10">
+        <p class="mb-3 text-center text-xs uppercase tracking-[0.45em] text-[var(--accent)]">Wedding Invitation</p>
+        <h1 class="font-signature text-center text-5xl text-[var(--accent-deep)] md:text-6xl">Generate Link</h1>
+        <p class="mx-auto mt-4 max-w-xl text-center text-lg leading-relaxed text-stone-700">
+            Masukkan nama tamu undangan, lalu bagikan undangan personal langsung ke WhatsApp.
+        </p>
+
+        <div class="mt-10 space-y-6">
+            <div>
+                <label for="guest-name" class="mb-3 block text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">Nama Tamu Undangan</label>
+                <input id="guest-name" type="text" placeholder="Nama tamu undangan" class="w-full rounded-[1.4rem] border border-[rgba(122,92,77,0.2)] bg-white px-5 py-4 text-xl text-stone-800 shadow-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[rgba(122,92,77,0.2)]">
+            </div>
+
+            <button id="share-whatsapp" type="button" class="flex w-full items-center justify-center gap-3 rounded-[1.4rem] border border-[var(--accent-deep)] bg-[var(--accent-deep)] px-5 py-4 text-lg font-semibold text-[var(--surface)] shadow-[0_16px_34px_rgba(41,37,36,0.2)] transition-all duration-300 hover:-translate-y-1 hover:bg-[var(--accent)] hover:border-[var(--accent)] active:scale-[0.99]">
+                <svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.05 4.91A9.82 9.82 0 0 0 12.03 2C6.56 2 2.1 6.45 2.1 11.93c0 1.75.46 3.46 1.33 4.97L2 22l5.26-1.38a9.9 9.9 0 0 0 4.77 1.22h.01c5.47 0 9.93-4.45 9.93-9.93a9.85 9.85 0 0 0-2.92-7ZM12.04 20.16h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 0 1-1.25-4.37c0-4.52 3.68-8.2 8.22-8.2 2.2 0 4.26.86 5.81 2.4a8.14 8.14 0 0 1 2.4 5.8c0 4.54-3.69 8.23-8.2 8.23Zm4.5-6.15c-.25-.13-1.47-.73-1.7-.81-.23-.08-.4-.12-.57.13-.17.25-.65.81-.8.98-.15.17-.3.19-.55.06-.25-.13-1.06-.39-2.02-1.25-.74-.66-1.24-1.48-1.39-1.73-.15-.25-.02-.39.11-.52.12-.12.25-.3.38-.45.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.57-1.37-.78-1.88-.21-.5-.43-.43-.57-.44h-.49c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1s.9 2.44 1.02 2.61c.13.17 1.77 2.7 4.29 3.78.6.26 1.07.41 1.44.53.61.19 1.16.16 1.59.1.49-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.06-.1-.23-.17-.48-.29Z"></path>
+                </svg>
+                Share to WhatsApp
+            </button>
+
+            <div>
+                <label for="message-template" class="mb-3 block text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">Isi Pesan WhatsApp</label>
+                <textarea id="message-template" rows="16" class="w-full rounded-[1.6rem] border border-[rgba(122,92,77,0.2)] bg-white px-5 py-4 text-lg leading-relaxed text-stone-800 shadow-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[rgba(122,92,77,0.2)]"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const guestNameInput = document.getElementById('guest-name');
+        const shareButton = document.getElementById('share-whatsapp');
+        const messageTemplateInput = document.getElementById('message-template');
+        const invitationBaseUrl = 'https://lia-dau.vercel.app/';
+        let messageCustomized = false;
+
+        const formatGuestSlug = name => name.trim().replace(/\s+/g, '-');
+
+        const buildWhatsappMessage = guestName => {
+            const invitationUrl = `${invitationBaseUrl}?to=${encodeURIComponent(formatGuestSlug(guestName))}`;
+
+            return `Assalamu'alaikum Warahmatullahi Wabarakatuh
+
+Tanpa mengurangi rasa hormat, izinkan kami mengundang Bapak/Ibu/Saudara/i untuk hadir dan memberikan doa restu pada acara pernikahan kami:
+
+Muhammad Abda'u ulum
+&
+Erlia Safitri
+
+Akad & Resepsi:
+[ Hari, Tanggal ] Minggu, 05 April 2026
+[ Waktu ] 08:00 WIB - Selesai
+[ Lokasi ] Kediaman mempelai wanita
+
+Merupakan suatu kehormatan bagi kami apabila Bapak/Ibu/Saudara/i berkenan hadir. Info lengkap mengenai lokasi, galeri foto, dan RSVP dapat diakses melalui tautan undangan online berikut:
+
+[ Link Undangan ] ${invitationUrl}
+
+Atas kehadiran dan doa restunya, kami ucapkan terima kasih.
+
+Wassalamu'alaikum Warahmatullahi Wabarakatuh`;
+        };
+
+        const syncMessageTemplate = () => {
+            const guestName = guestNameInput.value.trim();
+            if (!guestName || messageCustomized) {
+                return;
+            }
+
+            messageTemplateInput.value = buildWhatsappMessage(guestName);
+        };
+
+        guestNameInput.addEventListener('input', () => {
+            if (!messageCustomized) {
+                messageTemplateInput.value = guestNameInput.value.trim() ? buildWhatsappMessage(guestNameInput.value.trim()) : '';
+            }
+        });
+
+        messageTemplateInput.addEventListener('input', () => {
+            messageCustomized = messageTemplateInput.value.trim() !== '';
+        });
+
+        shareButton.addEventListener('click', () => {
+            const guestName = guestNameInput.value.trim();
+
+            if (!guestName) {
+                guestNameInput.focus();
+                return;
+            }
+
+            if (!messageTemplateInput.value.trim()) {
+                messageCustomized = false;
+                syncMessageTemplate();
+            }
+
+            const message = messageTemplateInput.value.trim();
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+        });
+
+        guestNameInput.value = '';
+        messageTemplateInput.value = '';
+    </script>
+</body>
+</html>
